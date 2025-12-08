@@ -5,8 +5,51 @@ import numpy as np
 from datetime import datetime
 import sys
 
-# Initialize exchangea
+# Initialize exchange
 exchange = ccxt.binance()
+
+# Consistent signal weights
+SIGNAL_WEIGHTS = {
+    # TREND SIGNALS
+    'STRONG UPTREND': 3,
+    'STRONG DOWNTREND': -3,
+    'UPTREND': 2,
+    'DOWNTREND': -2,
+    'RANGING': 0,
+    
+    # RSI SIGNALS
+    'OVERSOLD': 2,
+    'OVERBOUGHT': -2,
+    'BULLISH MOMENTUM': 1,
+    'BEARISH MOMENTUM': -1,
+    
+    # MACD SIGNALS
+    'BULLISH CROSSOVER': 2,
+    'BEARISH CROSSOVER': -2,
+    'BULLISH MOMENTUM': 1,
+    'BEARISH MOMENTUM': -1,
+    
+    # BOLLINGER BANDS - ADD ALL VARIATIONS
+    'AT UPPER BOLLINGER': -1,
+    'AT LOWER BOLLINGER': 1,
+    'UPPER BOLLINGER': -1,      # ADD THIS for "UPPER BOLLINGER RANGE"
+    'LOWER BOLLINGER': 1,       # ADD THIS for "LOWER BOLLINGER RANGE"
+    'MIDDLE BOLLINGER': 0,      # ADD THIS for "MIDDLE BOLLINGER RANGE"
+    
+    # VOLUME
+    'HIGH VOLUME': 1,
+    'LOW VOLUME': -1,
+    
+    # SUPPORT/RESISTANCE
+    'SUPPORT': 1,
+    'RESISTANCE': -1,
+    'NEAR STRONG SUPPORT': 1,     # ADD THIS
+    'NEAR STRONG RESISTANCE': -1, # ADD THIS
+    
+    # VOLATILITY
+    'HIGH VOLATILITY': 0,
+    'LOW VOLATILITY': 0,
+}
 
 def typewriter_effect(text, delay=0.03):
     """Simulate typewriter effect for futuristic feel"""
@@ -250,25 +293,69 @@ def generate_trading_signals(df):
     
     return signals
 
+def debug_signal_scoring(signals):
+    """Debug function to show how signals are scored"""
+    print("\n🔍 SIGNAL SCORING DEBUG:")
+    print("-" * 50)
+    
+    for i, signal in enumerate(signals, 1):
+        score = 0
+        signal_type = "Unknown"
+        
+        # Check each signal type
+        for sig_type, weight in SIGNAL_WEIGHTS.items():
+            if sig_type in signal:
+                score = weight
+                signal_type = sig_type
+                break
+        
+        # Fallback scoring
+        if score == 0:
+            if any(word in signal for word in ['BULLISH', 'UPTREND', 'OVERSOLD', 'SUPPORT']):
+                score = 1
+                signal_type = "Bullish (fallback)"
+            elif any(word in signal for word in ['BEARISH', 'DOWNTREND', 'OVERBOUGHT', 'RESISTANCE']):
+                score = -1
+                signal_type = "Bearish (fallback)"
+        
+        emoji = "📗" if score > 0 else "📕" if score < 0 else "📊"
+        print(f"{i:2d}. {emoji} {signal[:40]:40} | Score: {score:>+2} | Type: {signal_type}")
+    
+    print("-" * 50)
+
 def get_overall_recommendation(signals):
     """
-    Generate overall recommendation based on signals
+    Generate overall recommendation with CONSISTENT scoring
     """
-    bullish_count = sum(1 for s in signals if any(word in s for word in ['BULLISH', 'UPTREND', 'OVERSOLD', 'SUPPORT', 'BUY']))
-    bearish_count = sum(1 for s in signals if any(word in s for word in ['BEARISH', 'DOWNTREND', 'OVERBOUGHT', 'RESISTANCE', 'SELL']))
+    # Initialize scores
+    total_score = 0
+    signal_details = []
     
-    if bullish_count > bearish_count + 2:
-        return "🟢 STRONG BUY", f"({bullish_count} bullish vs {bearish_count} bearish signals)"
-    elif bearish_count > bullish_count + 2:
-        return "🔴 STRONG SELL", f"({bearish_count} bearish vs {bullish_count} bullish signals)"
-    elif bullish_count > bearish_count:
-        return "📗 BUY", f"({bullish_count} bullish vs {bearish_count} bearish signals)"
-    elif bearish_count > bullish_count:
-        return "📕 SELL", f"({bearish_count} bearish vs {bullish_count} bullish signals)"
-    else:
-        return "🟡 HOLD/WAIT", f"({bullish_count} bullish vs {bearish_count} bearish signals)"
+    for signal in signals:
+        signal_score = 0
+        signal_found = False
+        
+        # Check each signal type and assign weight
+        for signal_type, weight in SIGNAL_WEIGHTS.items():
+            if signal_type in signal:
+                total_score += weight
+                signal_score = weight
+                signal_found = True
+                break
+        
+        # If no match found, check for partial matches
+        if not signal_found:
+            # Default scoring based on emojis/keywords
+            if any(word in signal for word in ['BULLISH', 'UPTREND', 'OVERSOLD', 'SUPPORT']):
+                signal_score = 1
+                total_score += 1
+            elif any(word in signal for word in ['BEARISH', 'DOWNTREND', 'OVERBOUGHT', 'RESISTANCE']):
+                signal_score = -1
+                total_score -= 1
+        
+        signal_details.append((signal, signal_score))
 
-def display_results(btc_data, signals, recommendation, count):
+def display_results(btc_data, signals, recommendation, confidence):
     """Display results in a futuristic, systematic way"""
     
     current = btc_data.iloc[-1]
@@ -315,7 +402,7 @@ def display_results(btc_data, signals, recommendation, count):
     typewriter_effect("\n💡 FINAL ANALYSIS:", 0.03)
     time.sleep(0.5)
     typewriter_effect(f"   └─ RECOMMENDATION: {recommendation}", 0.01)
-    typewriter_effect(f"   └─ SIGNAL STRENGTH: {count}", 0.01)
+    typewriter_effect(f"   └─ SIGNAL CONFIDENCE: {confidence}", 0.01)
     
     # Key levels
     typewriter_effect("\n📈 KEY PRICE LEVELS:", 0.02)
@@ -354,8 +441,12 @@ if __name__ == "__main__":
         time.sleep(1)
         
         signals = generate_trading_signals(btc_data)
-        recommendation, count = get_overall_recommendation(signals)
         
-        display_results(btc_data, signals, recommendation, count)
+        # Debug scoring
+        debug_signal_scoring(signals)
+        
+        recommendation, confidence = get_overall_recommendation(signals)
+        
+        display_results(btc_data, signals, recommendation, confidence)
     else:
         print("❌ FAILED TO RETRIEVE DATA - PLEASE CHECK CONNECTION")

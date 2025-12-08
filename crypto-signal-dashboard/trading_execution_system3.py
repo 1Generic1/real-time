@@ -55,7 +55,7 @@ except ImportError as e:
 
 # Advanced ML Predictor Import
 try:
-    from advanced_ml_predictor2 import AdvancedMLPredictor
+    from advanced_ml_predictor3 import AdvancedMLPredictor
     ML_AVAILABLE = True
     print("✅ Advanced ML System Imported Successfully")
 except ImportError as e:

@@ -53,23 +53,23 @@ except ImportError as e:
                 f"📈 Funding Rate: ✅ NORMAL (0.10%) (Fallback)"
             ]
 
-# Advanced ML Predictor Import
+# Advanced ML Predictor Import - SIMPLE VERSION
 try:
-    from advanced_ml_predictor2 import AdvancedMLPredictor
+    from advanced_ml_predictorsimple4 import RealisticMLPredictor
     ML_AVAILABLE = True
-    print("✅ Advanced ML System Imported Successfully")
+    print("✅ SIMPLE REALISTIC ML SYSTEM IMPORTED")
 except ImportError as e:
-    print(f"❌ Advanced ML Import Failed: {e}")
+    print(f"❌ Simple ML Import Failed: {e}")
     ML_AVAILABLE = False
     # Fallback class
-    class AdvancedMLPredictor:
+    class RealisticMLPredictor:
         def __init__(self): 
             self.is_trained = False
-        def train_models(self, *args): 
-            print("⚠️  ML not available")
+        def train_simple_model(self, *args): 
+            print("⚠️  Simple ML not available")
             return False
-        def predict(self, *args):
-            return [0]*3, [0.5]*3, {}
+        def predict_simple(self, *args):
+            return [0]*3, [0.5]*3
         def generate_ml_signals(self, *args):
             return [], 0
         def display_predictions(self, *args):
@@ -411,55 +411,58 @@ LIQUIDATION PRICE: ${trade_signal['stop_loss'] * 1.05:,.4f}
 class MLEnhancedTradingSystem(TradingExecutionSystem):
     def __init__(self, account_balance=1000):
         super().__init__(account_balance)
-        self.ml_predictor = AdvancedMLPredictor()
+        self.ml_predictor = RealisticMLPredictor()
         self.ml_trained = False
         
     def train_ml_models(self, price_data, onchain_data):
-        """Train ML models"""
+        """Train SIMPLE ML models on PRICE DATA ONLY"""
         if not ML_AVAILABLE:
             print("❌ ML dependencies not installed")
             return False
             
-        print("🤖 INITIATING ADVANCED ML TRAINING...")
-        success = self.ml_predictor.train_models(price_data, onchain_data)
+        print("🤖 INITIATING SIMPLE ML TRAINING (PRICE DATA ONLY)...")
+        # Train ONLY on price data - ignore onchain_data for ML
+        success = self.ml_predictor.train_simple_model(price_data)
         self.ml_trained = success
         if success:
-            print("✅ ML MODELS READY FOR LIVE PREDICTIONS")
+            print("✅ SIMPLE ML MODELS READY FOR LIVE PREDICTIONS")
         return success
     
     def generate_enhanced_signal(self, ta_signals, onchain_signals, price_data, onchain_data):
-        """Generate signal with ML enhancement"""
+        """Generate signal with SIMPLE ML enhancement"""
         # Traditional scoring
         traditional_score = self.score_signals(ta_signals, onchain_signals)
         print(f"🔍 TRADITIONAL SCORE: {traditional_score}")
 
-        # ML enhancement
+        # SIMPLE ML enhancement
         ml_boost = 0
         ml_signals = []
         
         if self.ml_trained and ML_AVAILABLE:
             try:
-                print("🤖 GENERATING ML PREDICTIONS...")
-                predictions, confidence_scores, _ = self.ml_predictor.predict(price_data, onchain_data)
+                print("🤖 GENERATING SIMPLE ML PREDICTIONS...")
+                # Use only price_data - ignore onchain_data for predictions
+                predictions, confidences = self.ml_predictor.predict_simple(price_data)
                 current_price = price_data['close'].iloc[-1]
 
-                print(f"🤖 PREDICTIONS: {predictions}")
-                print(f"🤖 CONFIDENCE: {confidence_scores}")
-                
+                # Generate ML signals
                 ml_signals, ml_boost = self.ml_predictor.generate_ml_signals(
-                    predictions, confidence_scores, current_price
+                    predictions, confidences, current_price
                 )
 
                 print(f"🤖 ML SIGNALS: {ml_signals}")
                 print(f"🤖 ML BOOST: {ml_boost}")
                 
-                # Display ML predictions
-                self.ml_predictor.display_predictions(predictions, confidence_scores, ml_signals)
+                # Display predictions
+                self.ml_predictor.display_predictions(predictions, confidences, ml_signals)
                 
             except Exception as e:
                 print(f"⚠️  ML Prediction Error: {e}")
                 import traceback
-                traceback.print_exc()  # This will show the full error stack
+                traceback.print_exc()
+        else:
+            print("🤖 ML NOT TRAINED OR UNAVAILABLE")
+        
         # Combine scores
         combined_score = traditional_score + ml_boost
         print(f"🎯 FINAL COMBINED SCORE: {traditional_score} + {ml_boost} = {combined_score}")
@@ -473,13 +476,24 @@ def integrate_and_trade_with_ml(symbol='BTC/USDT', timeframe='4h', account_balan
     trading_system = MLEnhancedTradingSystem(account_balance)
     
     print(f"\n{'🤖' * 20}")
-    print("🤖 ADVANCED ML TRADING SYSTEM ACTIVATED")
+    print("🤖 SIMPLE ML TRADING SYSTEM ACTIVATED")
     print(f"{'🤖' * 20}")
     
-    # Get data (more for ML)
+    # Get data (enough for ML)
     print(f"\n🔍 ANALYZING {symbol} FOR TRADING OPPORTUNITIES...")
-    price_data = fetch_price_data(symbol, timeframe, 500)  # More data for ML
-    if price_data is None:
+    price_data = fetch_price_data(symbol, timeframe, 200)  # Enough for simple ML
+    if price_data is not None:
+        print(f"\n🔍 DATA DEBUG:")
+        print(f"   Symbol: {symbol}")
+        print(f"   Timeframe: {timeframe}")
+        print(f"   Data shape: {price_data.shape}")
+        print(f"   Date range: {price_data.index[0]} to {price_data.index[-1]}")
+        if hasattr(price_data.index[0], 'date'):
+            print(f"   Days of data: {(price_data.index[-1].date() - price_data.index[0].date()).days}")
+        print(f"   Candles: {len(price_data)}")
+        print(f"   Latest price: ${price_data['close'].iloc[-1]:.2f}")
+        print(f"   Latest volume: {price_data['volume'].iloc[-1]:,.0f}")
+    else:
         print(f"❌ Could not fetch price data for {symbol}")
         return
     
@@ -495,7 +509,7 @@ def integrate_and_trade_with_ml(symbol='BTC/USDT', timeframe='4h', account_balan
     
     # Train ML (first run)
     if enable_ml and ML_AVAILABLE and not trading_system.ml_trained:
-        print("\n🤖 TRAINING ML MODELS ON HISTORICAL DATA...")
+        print("\n🤖 TRAINING SIMPLE ML MODELS ON PRICE DATA...")
         trading_system.train_ml_models(price_data, all_metrics)
     
     # Generate enhanced signal
@@ -661,7 +675,7 @@ if __name__ == "__main__":
     
     # Multi-crypto scanning (without ML for speed)
     time.sleep(2)
-    batch_analyze_cryptos(['ETH/USDT', 'SOL/USDT', 'ADA/USDT'], enable_ml=True)
+    batch_analyze_cryptos(['ETH/USDT', 'SOL/USDT', 'ADA/USDT'], enable_ml=False)
     
     print(f"\n{'✅' * 20}")
     print("✅ TRADING EXECUTION SYSTEM READY")
