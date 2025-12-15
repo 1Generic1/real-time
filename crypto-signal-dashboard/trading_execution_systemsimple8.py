@@ -213,7 +213,7 @@ def cache_onchain_data(symbol, data):
     print(f"   ⛓️ Cached on-chain data for {symbol}")
 
 class TradingExecutionSystem:
-    def __init__(self, account_balance=1000, risk_per_trade=0.02, max_position_size=0.3):
+    def __init__(self, account_balance=1000, risk_per_trade=0.05, max_position_size=1):
         self.account_balance = account_balance
         self.risk_per_trade = risk_per_trade  # 2% risk per trade
         self.max_position_size = max_position_size
@@ -1499,51 +1499,89 @@ def batch_analyze_cryptos(cryptos=None, account_balance=1000, enable_ml=False):
     if cryptos is None:
         cryptos = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'ADA/USDT', 'DOT/USDT']
     
-    TradingAnimator.animate_title("🔍 MULTI-CRYPTO SCANNING MODE", 0.02)
+    # ==================== COLOR DEFINITIONS ====================
+    BATCH_COLOR = '\033[92m' if enable_ml else '\033[93m'  # Green for ML, Yellow for non-ML
+    CRYPTO_COLOR = '\033[91m'      # RED for crypto symbols
+    INFO_COLOR = '\033[96m'        # CYAN for informational text
+    SUCCESS_COLOR = '\033[92m'     # GREEN for success messages
+    WARNING_COLOR = '\033[93m'     # YELLOW for warnings
+    ERROR_COLOR = '\033[91m'       # RED for errors
+    TIME_COLOR = '\033[90m'        # GRAY for timestamps
+    ML_COLOR = '\033[95m'          # PURPLE for ML info
+    RESET = '\033[0m'
+    
+    LONG_COLOR = '\033[92m'        # GREEN for LONG trades
+    SHORT_COLOR = '\033[91m'       # RED for SHORT trades
+    SCORE_COLOR = '\033[95m'       # PURPLE for scores
+    # ===========================================================
+    
+    ml_text = "WITH ML" if enable_ml else "WITHOUT ML"
+    
+    TradingAnimator.animate_title(f"{BATCH_COLOR}🔍 MULTI-CRYPTO SCANNING MODE - {ml_text}{RESET}", 0.02)
     
     # SCAN START TIME
     scan_start_time = datetime.now()
-    print(f"🕒 SCAN STARTED: {scan_start_time.strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"📊 CRYPTOS TO ANALYZE: {len(cryptos)}")
-    print(f"📊 ACCOUNT BALANCE: ${account_balance:,.2f}")
-    print(f"🎯 RANDOM SEED: {SEED} (Ensures reproducibility)")
-    print(f"📊 ML TRAINING DATA LENGTH: {ML_TRAINING_DATA_LENGTH} candles")
+    print(f"{BATCH_COLOR}🕒 SCAN STARTED: {scan_start_time.strftime('%Y-%m-%d %H:%M:%S')}{RESET}")
+    print(f"{BATCH_COLOR}📊 CRYPTOS TO ANALYZE: {len(cryptos)} {ml_text}{RESET}")
+    
+    # Show coins with RED color
+    print(f"{BATCH_COLOR}📊 COINS: {RESET}", end="")
+    for i, crypto in enumerate(cryptos):
+        print(f"{CRYPTO_COLOR}{crypto}{RESET}", end="")
+        if i < len(cryptos) - 1:
+            print(f"{BATCH_COLOR}, {RESET}", end="")
+    print()
+    
+    print(f"{BATCH_COLOR}💰 ACCOUNT BALANCE: ${account_balance:,.2f}{RESET}")
+    print(f"{BATCH_COLOR}🎯 RANDOM SEED: {SEED} (Ensures reproducibility){RESET}")
+    print(f"{BATCH_COLOR}📊 ML TRAINING DATA LENGTH: {ML_TRAINING_DATA_LENGTH} candles{RESET}")
     
     # We'll create separate trading systems for each crypto with ML
     best_opportunities = []
     
     for i, crypto in enumerate(cryptos, 1):
         crypto_start_time = datetime.now()
+        coin_name = crypto.split('/')[0]
         
-        TradingAnimator.animate_title(f"📈 [{i}/{len(cryptos)}] Analyzing {crypto}", 0.02)
-        print(f"   🕒 START: {crypto_start_time.strftime('%H:%M:%S')}")
+        # Animate title with crypto in RED
+        TradingAnimator.animate_title(f"{BATCH_COLOR}📈 [{i}/{len(cryptos)}] Analyzing {CRYPTO_COLOR}{crypto}{RESET}", 0.02)
+        print(f"{TIME_COLOR}   🕒 START: {crypto_start_time.strftime('%H:%M:%S')}{RESET}")
         
         try:
             # USE CACHED DATA FOR CONSISTENCY - SAME DATA LENGTH
             price_data = get_cached_or_fetch_price_data(crypto, '4h', ML_TRAINING_DATA_LENGTH)
             if price_data is None:
-                TradingAnimator.flash_text(f"   ❌ Could not fetch price data for {crypto}", 1, "\033[91m")
+                TradingAnimator.flash_text(f"{ERROR_COLOR}   ❌ Could not fetch price data for {crypto}{RESET}", 1, ERROR_COLOR)
                 continue
             
             # Create SEPARATE trading system for this crypto
             if enable_ml and ML_AVAILABLE:
-                TradingAnimator.loading_bar(f"   Creating ML system for {crypto}", 0.5)
+                TradingAnimator.loading_bar(f"{INFO_COLOR}   Creating ML system for {coin_name}{RESET}", 0.5)
                 trading_system = MLEnhancedTradingSystem(account_balance=account_balance)
             else:
                 trading_system = TradingExecutionSystem(account_balance=account_balance)
             
-            TradingAnimator.loading_bar("   Calculating indicators", 0.5)
+            TradingAnimator.loading_bar(f"{INFO_COLOR}   Calculating indicators{RESET}", 0.5)
             price_data = calculate_technical_indicators(price_data)
             ta_signals = generate_trading_signals(price_data)
             
-            # DEBUG: Show key technical indicators
+            # Show key technical indicators
             current_price = price_data['close'].iloc[-1]
-            print(f"   📊 Price: ${current_price:,.2f}")
-            print(f"   📊 Data points: {len(price_data)}")
+            print(f"{INFO_COLOR}   📊 Price: ${current_price:,.2f}{RESET}")
+            print(f"{INFO_COLOR}   📊 Data points: {len(price_data)}{RESET}")
+            
             if 'RSI' in price_data.columns:
                 rsi = price_data['RSI'].iloc[-1]
-                rsi_status = "OVERSOLD" if rsi < 30 else "OVERBOUGHT" if rsi > 70 else "NEUTRAL"
-                print(f"   📊 RSI: {rsi:.1f} ({rsi_status})")
+                if rsi < 30:
+                    rsi_status = "OVERSOLD"
+                    rsi_color = '\033[92m'  # Green for oversold
+                elif rsi > 70:
+                    rsi_status = "OVERBOUGHT"
+                    rsi_color = '\033[91m'  # Red for overbought
+                else:
+                    rsi_status = "NEUTRAL"
+                    rsi_color = '\033[93m'  # Yellow for neutral
+                print(f"{INFO_COLOR}   📊 RSI: {rsi_color}{rsi:.1f} ({rsi_status}){RESET}")
             
             base_symbol = crypto.split('/')[0]
             onchain_analyzer = OnChainAnalyzer()
@@ -1552,10 +1590,10 @@ def batch_analyze_cryptos(cryptos=None, account_balance=1000, enable_ml=False):
             cached_onchain = get_cached_onchain_data(base_symbol)
             if cached_onchain is not None:
                 all_metrics = cached_onchain
-                print(f"   ⛓️ Using cached on-chain data")
+                print(f"{INFO_COLOR}   ⛓️ Using cached on-chain data{RESET}")
             else:
                 # Fetch fresh data
-                TradingAnimator.loading_bar("   Fetching on-chain data", 0.5)
+                TradingAnimator.loading_bar(f"{INFO_COLOR}   Fetching on-chain data{RESET}", 0.5)
                 onchain_analyzer.accelerate_data_collection(base_symbol)
                 all_metrics = onchain_analyzer.get_comprehensive_onchain_analysis(base_symbol)
                 # Cache the result
@@ -1563,9 +1601,9 @@ def batch_analyze_cryptos(cryptos=None, account_balance=1000, enable_ml=False):
             
             onchain_signals = onchain_analyzer.analyze_comprehensive_signals(all_metrics)
             
-            # FIXED: Train ML SEPARATELY for each crypto
+            # Train ML SEPARATELY for each crypto
             if enable_ml and ML_AVAILABLE and isinstance(trading_system, MLEnhancedTradingSystem):
-                TradingAnimator.loading_bar(f"   Training ML for {crypto}", 1.0)
+                TradingAnimator.loading_bar(f"{ML_COLOR}   Training ML for {coin_name}{RESET}", 1.0)
                 trading_system.train_ml_models(price_data, crypto)
             
             # Generate trade signal
@@ -1594,8 +1632,8 @@ def batch_analyze_cryptos(cryptos=None, account_balance=1000, enable_ml=False):
             crypto_end_time = datetime.now()
             crypto_duration = (crypto_end_time - crypto_start_time).total_seconds()
             
-            print(f"   🕒 END: {crypto_end_time.strftime('%H:%M:%S')}")
-            print(f"   ⏱️  DURATION: {crypto_duration:.1f}s")
+            print(f"{TIME_COLOR}   🕒 END: {crypto_end_time.strftime('%H:%M:%S')}{RESET}")
+            print(f"{TIME_COLOR}   ⏱️  DURATION: {crypto_duration:.1f}s{RESET}")
             
             if trade_signal:
                 # ADD TIMESTAMP TO TRADE SIGNAL
@@ -1604,32 +1642,61 @@ def batch_analyze_cryptos(cryptos=None, account_balance=1000, enable_ml=False):
                 trade_signal['price_at_analysis'] = current_price
                 
                 best_opportunities.append(trade_signal)
-                direction_emoji = "🟢" if trade_signal['direction'] == "LONG" else "🔴"
-                score_to_show = trade_signal.get('combined_score', trade_signal['signal_strength'])
-                TradingAnimator.flash_text(f"   {direction_emoji} TRADE FOUND: {trade_signal['direction']} - Score: {score_to_show}", 1, "\033[92m")
-                print(f"   ⏰ Analyzed: {trade_signal['analysis_timestamp'].strftime('%H:%M:%S')}")
                 
-                # Show if ML was used
+                # Determine colors based on direction
+                if trade_signal['direction'] == "LONG":
+                    direction_color = LONG_COLOR
+                    direction_emoji = "🟢"
+                    direction_text = "LONG 📈"
+                else:
+                    direction_color = SHORT_COLOR
+                    direction_emoji = "🔴"
+                    direction_text = "SHORT 📉"
+                
+                score_to_show = trade_signal.get('combined_score', trade_signal['signal_strength'])
+                
+                # Create colorful trade found display
+                print(f"\n   {direction_color}{'━'*45}{RESET}")
+                
+                # Flash the trade found message
+                TradingAnimator.flash_text(
+                    f"   {direction_emoji} {direction_color}TRADE FOUND{RESET}",
+                    1,
+                    direction_color
+                )
+                
+                # Trade details
+                print(f"   {direction_color}↳ Direction: {direction_text}{RESET}")
+                print(f"   {SCORE_COLOR}↳ Signal Score: {score_to_show}{RESET}")
+                
+                # Analysis metadata
+                print(f"   {TIME_COLOR}⏰ {trade_signal['analysis_timestamp'].strftime('%H:%M:%S')}{RESET}")
+                print(f"   {TIME_COLOR}⏱️  Analysis took: {trade_signal['analysis_duration']:.1f}s{RESET}")
+                print(f"   {TIME_COLOR}💰 Price: ${trade_signal['price_at_analysis']:,.2f}{RESET}")
+                
+                # ML indicator
                 if 'ml_trained_on' in trade_signal:
-                    print(f"   🤖 ML trained on: {trade_signal['ml_trained_on']}")
+                    print(f"   {ML_COLOR}🤖 ML-enhanced signal{RESET}")
+                
+                print(f"   {direction_color}{'━'*45}{RESET}")
             else:
-                TradingAnimator.flash_text(f"   ❌ No trade signal", 1, "\033[93m")
+                TradingAnimator.flash_text(f"{WARNING_COLOR}   ❌ No trade signal for {coin_name}{RESET}", 1, WARNING_COLOR)
                 
         except Exception as e:
             crypto_end_time = datetime.now()
             crypto_duration = (crypto_end_time - crypto_start_time).total_seconds()
-            TradingAnimator.flash_text(f"   ⚡ Error analyzing {crypto}: {e}", 1, "\033[91m")
-            print(f"   🕒 END: {crypto_end_time.strftime('%H:%M:%S')}")
-            print(f"   ⏱️  DURATION: {crypto_duration:.1f}s")
+            TradingAnimator.flash_text(f"{ERROR_COLOR}   ⚡ Error analyzing {crypto}: {e}{RESET}", 1, ERROR_COLOR)
+            print(f"{TIME_COLOR}   🕒 END: {crypto_end_time.strftime('%H:%M:%S')}{RESET}")
+            print(f"{TIME_COLOR}   ⏱️  DURATION: {crypto_duration:.1f}s{RESET}")
     
     # Display best opportunities WITH TIMESTAMPS
     if best_opportunities:
         scan_end_time = datetime.now()
         total_duration = (scan_end_time - scan_start_time).total_seconds()
         
-        TradingAnimator.animate_title("🎯 BEST TRADING OPPORTUNITIES", 0.02)
-        print(f"🕒 SCAN COMPLETED: {scan_end_time.strftime('%Y-%m-%d %H:%M:%S')}")
-        print(f"⏱️  TOTAL SCAN TIME: {total_duration:.1f} seconds")
+        TradingAnimator.animate_title(f"{SUCCESS_COLOR}🎯 BEST TRADING OPPORTUNITIES{RESET}", 0.02)
+        print(f"{BATCH_COLOR}🕒 SCAN COMPLETED: {scan_end_time.strftime('%Y-%m-%d %H:%M:%S')}{RESET}")
+        print(f"{BATCH_COLOR}⏱️  TOTAL SCAN TIME: {total_duration:.1f} seconds{RESET}")
         
         # Sort by best score
         def get_best_score(trade):
@@ -1638,31 +1705,43 @@ def batch_analyze_cryptos(cryptos=None, account_balance=1000, enable_ml=False):
         best_opportunities.sort(key=lambda x: abs(get_best_score(x)), reverse=True)
         
         for i, opportunity in enumerate(best_opportunities[:3], 1):
-            direction_emoji = "🟢" if opportunity['direction'] == "LONG" else "🔴"
+            # Determine direction color
+            if opportunity['direction'] == "LONG":
+                opp_color = LONG_COLOR
+                direction_emoji = "🟢"
+            else:
+                opp_color = SHORT_COLOR
+                direction_emoji = "🔴"
+            
             time_ago = (datetime.now() - opportunity['analysis_timestamp']).total_seconds()
             
-            TradingAnimator.animate_title(f"#{i} {opportunity['symbol']} - {direction_emoji} {opportunity['direction']}", 0.02)
-            print(f"📊 Analysis Time: {opportunity['analysis_timestamp'].strftime('%H:%M:%S')}")
-            print(f"⏱️  Analysis Duration: {opportunity['analysis_duration']:.1f}s")
-            print(f"🕒 Age: {time_ago:.0f} seconds ago")
-            print(f"💰 Price then: ${opportunity['price_at_analysis']:,.2f}")
+            # Animate opportunity title
+            TradingAnimator.animate_title(
+                f"{opp_color}#{i} {opportunity['symbol']} - {direction_emoji} {opportunity['direction']}{RESET}", 
+                0.02
+            )
+            
+            print(f"{INFO_COLOR}📊 Analysis Time: {opportunity['analysis_timestamp'].strftime('%H:%M:%S')}{RESET}")
+            print(f"{INFO_COLOR}⏱️  Analysis Duration: {opportunity['analysis_duration']:.1f}s{RESET}")
+            print(f"{INFO_COLOR}🕒 Age: {time_ago:.0f} seconds ago{RESET}")
+            print(f"{INFO_COLOR}💰 Price then: ${opportunity['price_at_analysis']:,.2f}{RESET}")
             
             # Show ML info if used
             if 'combined_score' in opportunity:
-                print(f"🎯 ML-Enhanced Score: {opportunity['combined_score']} (Traditional: {opportunity['signal_strength']})")
+                print(f"{ML_COLOR}🎯 ML-Enhanced Score: {opportunity['combined_score']} (Traditional: {opportunity['signal_strength']}){RESET}")
                 if 'ml_trained_on' in opportunity:
-                    print(f"🤖 ML trained specifically on: {opportunity['ml_trained_on']}")
+                    print(f"{ML_COLOR}🤖 ML trained specifically on: {opportunity['ml_trained_on']}{RESET}")
             else:
-                print(f"🎯 Traditional Score: {opportunity['signal_strength']}")
+                print(f"{SCORE_COLOR}🎯 Traditional Score: {opportunity['signal_strength']}{RESET}")
                 
-            print(f"⚖️  R:R Ratio: {opportunity['risk_reward_ratio']:.2f}:1")
-            print(f"💵 Risk Amount: ${opportunity['risk_amount']:,.2f} ({opportunity['risk_percentage']:.1f}% of account) {opportunity['risk_status']}")
-            print(f"⚡ Leverage: {opportunity['leverage']}x")
-            print(f"💼 Margin: ${opportunity['margin_required']:,.0f}")
+            print(f"{INFO_COLOR}⚖️  R:R Ratio: {opportunity['risk_reward_ratio']:.2f}:1{RESET}")
+            print(f"{INFO_COLOR}💵 Risk Amount: ${opportunity['risk_amount']:,.2f} ({opportunity['risk_percentage']:.1f}% of account) {opportunity['risk_status']}{RESET}")
+            print(f"{INFO_COLOR}⚡ Leverage: {opportunity['leverage']}x{RESET}")
+            print(f"{INFO_COLOR}💼 Margin: ${opportunity['margin_required']:,.0f}{RESET}")
             
             # Show ML signals if available
             if 'ml_signals' in opportunity and opportunity['ml_signals']:
-                print(f"🤖 ML Signals: {', '.join(opportunity['ml_signals'][:3])}")
+                print(f"{ML_COLOR}🤖 ML Signals: {', '.join(opportunity['ml_signals'][:3])}{RESET}")
             
             # Check if price has changed significantly
             try:
@@ -1671,20 +1750,40 @@ def batch_analyze_cryptos(cryptos=None, account_balance=1000, enable_ml=False):
                     current_price = current_data['close'].iloc[-1]
                     price_change = ((current_price - opportunity['price_at_analysis']) / 
                                    opportunity['price_at_analysis']) * 100
-                    print(f"📈 Current Price: ${current_price:,.2f}")
-                    print(f"📊 Price Change: {price_change:+.2f}%")
+                    print(f"{INFO_COLOR}📈 Current Price: ${current_price:,.2f}{RESET}")
+                    
+                    # Color code price change
+                    if price_change > 1.0:
+                        price_color = '\033[92m'  # Green for positive
+                    elif price_change < -1.0:
+                        price_color = '\033[91m'  # Red for negative
+                    else:
+                        price_color = '\033[93m'  # Yellow for neutral
+                    
+                    print(f"{price_color}📊 Price Change: {price_change:+.2f}%{RESET}")
                     
                     if abs(price_change) > 1.0:  # If price moved >1%
-                        TradingAnimator.flash_text(f"⚠️  SIGNAL AGED: Price moved {price_change:+.2f}%", 1, "\033[93m")
-                        print(f"💡 Consider re-analyzing {opportunity['symbol']}")
+                        TradingAnimator.flash_text(
+                            f"{WARNING_COLOR}⚠️  SIGNAL AGED: Price moved {price_change:+.2f}%{RESET}", 
+                            1, 
+                            WARNING_COLOR
+                        )
+                        print(f"{WARNING_COLOR}💡 Consider re-analyzing {opportunity['symbol']}{RESET}")
             except:
                 pass
+            
+            print()  # Add spacing between opportunities
+            
     else:
         scan_end_time = datetime.now()
         total_duration = (scan_end_time - scan_start_time).total_seconds()
-        TradingAnimator.flash_text("❌ No strong trading opportunities found", 2, "\033[91m")
-        print(f"🕒 SCAN COMPLETED: {scan_end_time.strftime('%Y-%m-%d %H:%M:%S')}")
-        print(f"⏱️  TOTAL SCAN TIME: {total_duration:.1f} seconds")
+        TradingAnimator.flash_text(
+            f"{WARNING_COLOR}❌ No strong trading opportunities found{RESET}", 
+            2, 
+            WARNING_COLOR
+        )
+        print(f"{BATCH_COLOR}🕒 SCAN COMPLETED: {scan_end_time.strftime('%Y-%m-%d %H:%M:%S')}{RESET}")
+        print(f"{BATCH_COLOR}⏱️  TOTAL SCAN TIME: {total_duration:.1f} seconds{RESET}")
 
 def test_scoring_consistency():
     """Test that scoring is consistent"""
@@ -1804,65 +1903,98 @@ def test_final_consistency():
 
 # Main execution
 if __name__ == "__main__":
+    # ==================== CONFIGURATION ====================
+    TEST_SYMBOL = 'BTC/USDT'  # ← Change only here for different coins
+    TEST_TIMEFRAME = '4h'
+    TEST_BALANCE = 1000
+    TEST_ENABLE_ML = True
+    # For batch analysis - can add multiple coins
+    BATCH_COINS_ML = ['ETH/USDT']  # Just the test coin for ML analysis
+    BATCH_COINS_NO_ML = [TEST_SYMBOL]  # Other coins for comparison
+    # ======================================================
+    
+    # Extract coin display name (without /USDT)
+    COIN_NAME = TEST_SYMBOL.split('/')[0]
+    
     TradingAnimator.clear_screen()
     
     # Animated startup sequence
-    TradingAnimator.animate_title("🚀 CRYPTO TRADING EXECUTION SYSTEM v7.0", 0.03)
+    TradingAnimator.animate_title(f"🚀 {COIN_NAME} TRADING EXECUTION SYSTEM v7.0", 0.03)
     print("\n" + "="*70)
     
     TradingAnimator.loading_bar("Initializing trading engine", 2.0)
     TradingAnimator.loading_bar("Loading ML modules", 1.5)
-    TradingAnimator.loading_bar("Setting up risk management", 1.0)
+    TradingAnimator.loading_bar(f"Setting up {COIN_NAME} risk management", 1.0)
     
     print("\n" + "="*70)
-    TradingAnimator.flash_text("✅ SYSTEM READY FOR TRADING!", 3, "\033[92m")
+    TradingAnimator.flash_text(f"✅ SYSTEM READY FOR {COIN_NAME} TRADING!", 3, "\033[92m")
     
     # Run tests with animations
-    TradingAnimator.countdown(2, "Starting analysis tests")
+    TradingAnimator.countdown(2, f"Starting {COIN_NAME} analysis tests")
     
     # Clear cache to start fresh
     price_data_cache.clear()
     ONCHAIN_CACHE = {}
-    print("🧹 Cleared all caches for fresh analysis")
+    print(f"🧹 Cleared all caches for {COIN_NAME} analysis")
     
     # Run diagnostic test first
-    TradingAnimator.animate_title("🔍 PRICE CONSISTENCY DIAGNOSTIC TEST", 0.03)
+    TradingAnimator.animate_title(f"🔍 {COIN_NAME} PRICE CONSISTENCY DIAGNOSTIC TEST", 0.03)
     
-    # Test 1: Fetch ETH once
-    print("Test 1: Fetching COIN data (100 candles)...")
-    btc1 = get_cached_or_fetch_price_data('ETH/USDT', '4h', ML_TRAINING_DATA_LENGTH)
-    if btc1 is not None:
-        print(f"   Price 1: ${btc1['close'].iloc[-1]:,.2f}")
+    # Test 1: Fetch coin once
+    print(f"Test 1: Fetching {COIN_NAME} data ({ML_TRAINING_DATA_LENGTH} candles)...")
+    coin_data1 = get_cached_or_fetch_price_data(TEST_SYMBOL, TEST_TIMEFRAME, ML_TRAINING_DATA_LENGTH)
+    if coin_data1 is not None:
+        print(f"   Price 1: ${coin_data1['close'].iloc[-1]:,.2f}")
         
-        # Test 2: Fetch ETH immediately again (should use cache)
-        print(f"\nTest 2: Fetching BTC COIN again (should use cache)...")
-        btc2 = get_cached_or_fetch_price_data('ETH/USDT', '4h', ML_TRAINING_DATA_LENGTH)
-        if btc2 is not None:
-            print(f"   Price 2: ${btc2['close'].iloc[-1]:,.2f}")
+        # Test 2: Fetch coin immediately again (should use cache)
+        print(f"\nTest 2: Fetching {COIN_NAME} again (should use cache)...")
+        coin_data2 = get_cached_or_fetch_price_data(TEST_SYMBOL, TEST_TIMEFRAME, ML_TRAINING_DATA_LENGTH)
+        if coin_data2 is not None:
+            print(f"   Price 2: ${coin_data2['close'].iloc[-1]:,.2f}")
             
             # Check if they're the same
-            price_diff = abs(btc1['close'].iloc[-1] - btc2['close'].iloc[-1])
+            price_diff = abs(coin_data1['close'].iloc[-1] - coin_data2['close'].iloc[-1])
             if price_diff < 0.01:  # Less than 1 cent difference
-                TradingAnimator.flash_text(f"✅ CACHE WORKING: Prices are identical (difference: ${price_diff:.4f})", 2, "\033[92m")
+                TradingAnimator.flash_text(f"✅ CACHE WORKING: {COIN_NAME} prices are identical (difference: ${price_diff:.4f})", 2, "\033[92m")
             else:
-                TradingAnimator.flash_text(f"⚠️  CACHE ISSUE: Prices differ by ${price_diff:.2f}", 2, "\033[93m")
+                TradingAnimator.flash_text(f"⚠️  CACHE ISSUE: {COIN_NAME} prices differ by ${price_diff:.2f}", 2, "\033[93m")
     
-    TradingAnimator.animate_title("🧪 TEST 1: SINGLE SYMBOL ANALYSIS WITH ML", 0.03)
-    integrate_and_trade_with_ml('ETH/USDT', '4h', account_balance=1000, enable_ml=True)
+    # Test 1: Single symbol analysis with ML
+    TradingAnimator.animate_title(f"🧪 TEST 1: \033[91m{COIN_NAME}\033[0m SINGLE ANALYSIS WITH ML", 0.03)
+    integrate_and_trade_with_ml(
+        TEST_SYMBOL, 
+        TEST_TIMEFRAME, 
+        account_balance=TEST_BALANCE, 
+        enable_ml=TEST_ENABLE_ML
+    )
     
     time.sleep(2)
     
-    TradingAnimator.animate_title("🧪 TEST 2: BATCH ANALYSIS WITH ML (NOW SHOULD BE CONSISTENT)", 0.03)
-    #batch_analyze_cryptos(['BTC/USDT', 'SOL/USDT'], enable_ml=True)
-    batch_analyze_cryptos(['BTC/USDT'], enable_ml=True)
+    # Test 2: Batch analysis with ML (focus on test coin)
+    TradingAnimator.animate_title(f"🧪 TEST 2: {COIN_NAME} BATCH ANALYSIS WITH ML", 0.03)
+    # Optional: You can add more coins here if you want
+    batch_analyze_cryptos(
+        BATCH_COINS_ML, 
+        account_balance=TEST_BALANCE,
+        enable_ml=TEST_ENABLE_ML
+    )
     
     time.sleep(2)
     
-    TradingAnimator.animate_title("🧪 TEST 3: BATCH ANALYSIS WITHOUT ML FOR COMPARISON", 0.03)
-    batch_analyze_cryptos(['BTC/USDT', 'ETH/USDT'], enable_ml=False)
+    # Test 3: Batch analysis WITHOUT ML for comparison (other coins)
+    TradingAnimator.animate_title("🧪 TEST 3: MULTI-COIN ANALYSIS WITHOUT ML", 0.03)
+    # Showing BTC and ETH for comparison without ML
+    batch_analyze_cryptos(
+        BATCH_COINS_NO_ML, 
+        account_balance=TEST_BALANCE,
+        enable_ml=False
+    )
     
-    TradingAnimator.animate_title("✅ TRADING EXECUTION SYSTEM READY", 0.03)
+    TradingAnimator.animate_title(f"✅ {COIN_NAME} TRADING ANALYSIS COMPLETE", 0.03)
     print(f"✅ Random Seed: {SEED} ensures reproducible results")
     print(f"✅ ML Training Data: {ML_TRAINING_DATA_LENGTH} candles (consistent)")
     print(f"✅ On-chain Data Cached: {ONCHAIN_CACHE_DURATION//60} minutes")
-    print(f"✅ All systems operational!")
+    print(f"✅ Primary Analysis Coin: {COIN_NAME}")
+    print(f"✅ Account Balance: ${TEST_BALANCE:,.2f}")
+    print(f"✅ ML Enabled: {TEST_ENABLE_ML}")
+    print(f"✅ All systems operational for {COIN_NAME}!")

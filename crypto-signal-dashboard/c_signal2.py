@@ -5,8 +5,33 @@ import numpy as np
 from datetime import datetime
 import sys
 
-# Initialize exchange
-exchange = ccxt.binance()
+def init_exchange():
+    """Try multiple exchanges until one works."""
+    preferred_exchanges = [
+        'bybit',     
+        'kucoin',    
+        'okx',       
+        'binance'    
+    ]
+    
+    for ex in preferred_exchanges:
+        try:
+            print(f"🔎 Trying {ex.upper()} ...")
+            exchange = getattr(ccxt, ex)({
+                'enableRateLimit': True,
+                'options': {'defaultType': 'spot'}
+            })
+            exchange.load_markets()
+            print(f"✅ Connected to {ex.upper()}")
+            return exchange
+        except Exception as e:
+            print(f"⚠️ {ex.upper()} failed: {e}")
+    
+    print("❌ No exchanges available!")
+    return None
+
+# Initialize exchange using fallback
+exchange = init_exchange()
 
 # Consistent signal weights
 SIGNAL_WEIGHTS = {
