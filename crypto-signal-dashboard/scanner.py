@@ -486,7 +486,7 @@ class BybitUniversalScanner:
         print(f"{WHITE}   No Signals: {no_signals} coins{RESET}")
     
     def display_detailed_signals(self, trading_signals: List[Dict], top_n: int = 20):
-        """Display detailed trading signals"""
+        """Display detailed trading signals - ENHANCED VERSION"""
         if not trading_signals:
             print(f"\n{RED}❌ No strong trading signals found{RESET}")
             return
@@ -499,24 +499,99 @@ class BybitUniversalScanner:
         for i, signal in enumerate(trading_signals[:top_n], 1):
             if signal['direction'] == "LONG":
                 color = GREEN
-                direction_emoji = "LONG"
+                direction_emoji = "📈 LONG"
+                arrow = "🔼"
             else:
                 color = RED
-                direction_emoji = "SHORT"
+                direction_emoji = "📉 SHORT"
+                arrow = "🔽"
             
             score = signal.get('combined_score', signal.get('signal_strength', 0))
             coin_name = signal.get('coin_name', signal['symbol'].split('/')[0])
             
-            print(f"\n{color}#{i} {coin_name} [{direction_emoji}]{RESET}")
-            print(f"{color}   Signal Score: {score}{RESET}")
-            print(f"{color}   Current Price: ${signal.get('price_at_analysis', signal.get('entry_price', 0)):,.2f}{RESET}")
-            print(f"{color}   Entry: ${signal.get('entry_price', 0):,.2f}{RESET}")
-            print(f"{color}   Stop Loss: ${signal.get('stop_loss', 0):,.2f}{RESET}")
-            print(f"{color}   Take Profit: ${signal.get('take_profits', [0,0,0])[0]:,.2f}{RESET}")
-            print(f"{color}   R:R Ratio: {signal.get('risk_reward_ratio', 0):.2f}:1{RESET}")
+            # Get prices
+            entry = signal.get('entry_price', 0)
+            stop = signal.get('stop_loss', 0)
+            tp_prices = signal.get('take_profits', [0, 0, 0])
             
+            # Calculate R:R for each TP
+            rr_values = []
+            if entry > 0 and stop > 0:
+                risk = abs(entry - stop)
+                if risk > 0:
+                    for j, tp in enumerate(tp_prices, 1):
+                        reward = abs(tp - entry)
+                        rr = reward / risk
+                        rr_values.append((j, tp, rr))
+            
+            # Create TP display with R:R
+            tp_lines = []
+            if rr_values:
+                for tp_num, tp_price, rr in rr_values:
+                    # Calculate percentage move
+                    if signal['direction'] == "LONG":
+                        pct_move = ((tp_price - entry) / entry) * 100
+                    else:
+                        pct_move = ((entry - tp_price) / entry) * 100
+                    
+                    # Color code R:R
+                    if rr >= 2.0:
+                        rr_color = GREEN
+                        rr_emoji = "✅"
+                    elif rr >= 1.5:
+                        rr_color = YELLOW
+                        rr_emoji = "⚠️"
+                    else:
+                        rr_color = RED
+                        rr_emoji = "❌"
+                    
+                    tp_lines.append(f"\n   {rr_emoji} TP{tp_num}: ${tp_price:,.2f} ({pct_move:+.1f}%) - {rr_color}R:R={rr:.1f}:1{RESET}")
+            
+            # Stop loss display
+            if entry > 0 and stop > 0:
+                if signal['direction'] == "LONG":
+                    stop_pct = ((stop - entry) / entry) * 100
+                else:
+                    stop_pct = ((stop - entry) / entry) * 100
+                stop_display = f"${stop:,.2f} ({stop_pct:+.1f}%)"
+            else:
+                stop_display = f"${stop:,.2f}"
+            
+            # Header
+            print(f"\n{color}{'━'*60}{RESET}")
+            print(f"{color}#{i} {arrow} {coin_name} {direction_emoji} (Score: {score}){RESET}")
+            print(f"{color}{'━'*60}{RESET}")
+            
+            # Price information
+            print(f"{color}💰 Current: ${signal.get('price_at_analysis', entry):,.2f}{RESET}")
+            print(f"{color}🎯 Entry: ${entry:,.2f}{RESET}")
+            print(f"{color}🛑 Stop: {stop_display}{RESET}")
+            
+            # Take Profits with R:R
+            if tp_lines:
+                print(f"{color}🎯 Take Profits:{RESET}")
+                for line in tp_lines:
+                    print(f"{color}{line}{RESET}")
+            
+            # Risk Summary
+            if entry > 0 and stop > 0 and rr_values:
+                print(f"{color}⚖️  Risk Summary:{RESET}")
+                risk_amount = abs(entry - stop)
+                print(f"{color}   • Risk per trade: ${risk_amount:,.2f}{RESET}")
+                
+                # Show win rate needed for each TP
+                for tp_num, tp_price, rr in rr_values:
+                    win_rate_needed = 1 / (1 + rr) * 100
+                    win_color = GREEN if win_rate_needed <= 40 else YELLOW if win_rate_needed <= 50 else RED
+                    print(f"{color}   • TP{tp_num}: Need {win_color}{win_rate_needed:.0f}%{RESET} win rate to break even")
+            
+            # ML Signals
             if 'ml_signals' in signal and signal['ml_signals']:
-                print(f"{MAGENTA}   ML Signals: {', '.join(signal['ml_signals'][:2])}{RESET}")
+                ml_text = ', '.join(signal['ml_signals'][:3])
+                ml_color = GREEN if 'CONFIDENCE' in ml_text and 'HIGH' in ml_text else RED if 'LOW' in ml_text else MAGENTA
+                print(f"{ml_color}   🤖 ML: {ml_text}{RESET}")
+            
+            print(f"{color}{'━'*60}{RESET}")
     
     def save_results_to_file(self, trading_signals: List[Dict], all_results: List[Dict], filename: str = None):
         """Save scan results to a file (ASCII-safe)"""

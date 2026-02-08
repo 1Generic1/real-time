@@ -758,12 +758,24 @@ class TradingExecutionSystem:
         return entry_price, stop_loss, take_profits
 
     def calculate_risk_reward(self, entry, stop_loss, take_profits):
-        """Calculate risk-reward ratio"""
+        """Calculate risk-reward ratio - FIXED VERSION"""
         risk = abs(entry - stop_loss)
         if risk == 0:
-            return 0
+            return {"tp1": 0, "tp2": 0, "tp3": 0, "average": 0}
+        
+        # Calculate R:R for each TP
+        rr_tp1 = abs(take_profits[0] - entry) / risk
+        rr_tp2 = abs(take_profits[1] - entry) / risk
+        rr_tp3 = abs(take_profits[2] - entry) / risk
         avg_reward = sum([abs(tp - entry) for tp in take_profits]) / len(take_profits)
-        return avg_reward / risk
+        
+        return {
+            "tp1": rr_tp1,
+            "tp2": rr_tp2,
+            "tp3": rr_tp3,
+            "average": avg_reward / risk,
+            "primary": rr_tp1  # Use TP1 for display
+        }
 
     def generate_trading_signal(self, ta_signals, onchain_signals, price_data, symbol, custom_leverage=None):
         """Generate trading signals for BOTH LONG and SHORT with custom leverage"""
@@ -896,14 +908,14 @@ class TradingExecutionSystem:
         # TIMING SECTION
         TradingAnimator.loading_bar("Generating timing section", 0.5)
         plan_parts.append(f"""
-⏰ TIMING INFORMATION:
-   Analysis Time: {trade_signal['timestamp'].strftime('%Y-%m-%d %H:%M:%S')}
-   Price at Analysis: ${trade_signal.get('price_at_analysis', trade_signal['entry_price']):,.2f}""")
+    ⏰ TIMING INFORMATION:
+    Analysis Time: {trade_signal['timestamp'].strftime('%Y-%m-%d %H:%M:%S')}
+    Price at Analysis: ${trade_signal.get('price_at_analysis', trade_signal['entry_price']):,.2f}""")
         
         if current_price:
             plan_parts.append(f"""
-   Current Price: ${current_price:,.2f}
-   Price Change: {price_change:+.2f}%""")
+    Current Price: ${current_price:,.2f}
+    Price Change: {price_change:+.2f}%""")
             
             if abs(price_change) > 2.0:
                 plan_parts.append(f"\n   ⚠️  WARNING: Price moved {price_change:+.2f}% since analysis")
@@ -911,17 +923,17 @@ class TradingExecutionSystem:
         # SYMBOL SECTION
         TradingAnimator.loading_bar("Generating symbol analysis", 0.5)
         plan_parts.append(f"""
-📊 SYMBOL: {trade_signal['symbol']}
-🏷️ ASSET TYPE: {category_info['description']} ({trade_signal['asset_category']})
-💼 ACCOUNT BALANCE: ${trade_signal['account_balance']:,.2f}""")
+    📊 SYMBOL: {trade_signal['symbol']}
+    🏷️ ASSET TYPE: {category_info['description']} ({trade_signal['asset_category']})
+    💼 ACCOUNT BALANCE: ${trade_signal['account_balance']:,.2f}""")
         
         # TRADE DETAILS SECTION
         TradingAnimator.loading_bar("Generating trade details", 0.5)
         plan_parts.append(f"""
-⚡ TRADE DIRECTION: {trade_signal['direction']}
-💰 ENTRY PRICE: ${trade_signal['entry_price']:,.2f}
-🛡️ STOP LOSS: ${trade_signal['stop_loss']:,.2f} ({stop_distance:+.1f}%)
-🎯 TAKE PROFITS:""")
+    ⚡ TRADE DIRECTION: {trade_signal['direction']}
+    💰 ENTRY PRICE: ${trade_signal['entry_price']:,.2f}
+    🛡️ STOP LOSS: ${trade_signal['stop_loss']:,.2f} ({stop_distance:+.1f}%)
+    🎯 TAKE PROFITS:""")
         
         for i, tp in enumerate(trade_signal['take_profits'], 1):
             if i == 1: distance = tp1_distance
@@ -932,26 +944,35 @@ class TradingExecutionSystem:
         # POSITION SIZING SECTION
         TradingAnimator.loading_bar("Generating position sizing", 0.5)
         plan_parts.append(f"""
-📈 POSITION SIZING:
-   Units: {trade_signal['position_size']:.6f}
-   Position Value: ${trade_signal['position_value']:,.2f}
-   Margin Required: ${trade_signal['margin_required']:,.2f}
-   Leverage: {trade_signal['leverage']:.1f}x
-   Liquidation Price: ${trade_signal['liquidation_price']:,.2f} ({liquidation_distance:+.1f}% from entry)""")
+    📈 POSITION SIZING:
+    Units: {trade_signal['position_size']:.6f}
+    Position Value: ${trade_signal['position_value']:,.2f}
+    Margin Required: ${trade_signal['margin_required']:,.2f}
+    Leverage: {trade_signal['leverage']:.1f}x
+    Liquidation Price: ${trade_signal['liquidation_price']:,.2f} ({liquidation_distance:+.1f}% from entry)""")
         
-        # RISK MANAGEMENT SECTION
+        # RISK MANAGEMENT SECTION - FIXED INDENTATION
         TradingAnimator.loading_bar("Generating risk management", 0.5)
         risk_color = "\033[92m" if trade_signal['buffer_to_liquidation'] > 20 else "\033[93m" if trade_signal['buffer_to_liquidation'] > 10 else "\033[91m"
         risk_level = '🟢 SAFE' if trade_signal['buffer_to_liquidation'] > 20 else '🟡 MODERATE' if trade_signal['buffer_to_liquidation'] > 10 else '🔴 DANGEROUS'
-        
+
+        # Get R:R info - handle both dictionary and float formats
+        rr_info = trade_signal.get('risk_reward_ratio', 0)
+        if isinstance(rr_info, dict):
+            # New format: dictionary with tp1, tp2, tp3
+            rr_display = f"TP1={rr_info.get('tp1', 0):.1f}:1, TP2={rr_info.get('tp2', 0):.1f}:1, TP3={rr_info.get('tp3', 0):.1f}:1"
+        else:
+            # Old format: single float
+            rr_display = f"{rr_info:.2f}:1"
+
         plan_parts.append(f"""
-⚖️ RISK MANAGEMENT:
-   Risk per Trade: {self.risk_per_trade*100}% of account
-   Actual Risk: ${trade_signal['risk_amount']:,.2f} ({trade_signal['risk_percentage']:.1f}% of account) {trade_signal['risk_status']}
-   R:R Ratio: {trade_signal['risk_reward_ratio']:.2f}:1
-   Signal Strength: {trade_signal['signal_strength']}/10
-   Buffer to Liquidation: {trade_signal['buffer_to_liquidation']:.1f}%
-   Risk Level: {risk_level}""")
+    ⚖️ RISK MANAGEMENT:
+    Risk per Trade: {self.risk_per_trade*100}% of account
+    Actual Risk: ${trade_signal['risk_amount']:,.2f} ({trade_signal['risk_percentage']:.1f}% of account) {trade_signal['risk_status']}
+    R:R Ratios: {rr_display}
+    Signal Strength: {trade_signal['signal_strength']}/10
+    Buffer to Liquidation: {trade_signal['buffer_to_liquidation']:.1f}%
+    Risk Level: {risk_level}""")
         
         # Show volatility warning if present
         if 'volatility_warning' in category_info:
@@ -962,12 +983,12 @@ class TradingExecutionSystem:
         # LEVERAGE RECOMMENDATIONS SECTION
         TradingAnimator.loading_bar("Generating leverage recommendations", 0.5)
         plan_parts.append(f"""
-🎯 LEVERAGE RECOMMENDATIONS for {trade_signal['symbol'].split('/')[0]}:
-   🟢 CONSERVATIVE: {category_info['conservative']:.1f}x (Beginner, low risk)
-   🟡 BALANCED: {category_info['balanced']:.1f}x (Recommended, moderate risk)
-   🟠 AGGRESSIVE: {category_info['aggressive']:.1f}x (Experienced, high risk)
-   🔴 MAX SAFE: {category_info['max_safe']:.1f}x (Expert only, very high risk)
-   ⚠️  AVOID: >{category_info['max_safe']:.1f}x (Extreme liquidation risk)""")
+    🎯 LEVERAGE RECOMMENDATIONS for {trade_signal['symbol'].split('/')[0]}:
+    🟢 CONSERVATIVE: {category_info['conservative']:.1f}x (Beginner, low risk)
+    🟡 BALANCED: {category_info['balanced']:.1f}x (Recommended, moderate risk)
+    🟠 AGGRESSIVE: {category_info['aggressive']:.1f}x (Experienced, high risk)
+    🔴 MAX SAFE: {category_info['max_safe']:.1f}x (Expert only, very high risk)
+    ⚠️  AVOID: >{category_info['max_safe']:.1f}x (Extreme liquidation risk)""")
         
         # Combine all parts
         plan = "".join(plan_parts)
@@ -1494,7 +1515,7 @@ def integrate_and_trade_with_ml(symbol='BTC/USDT', timeframe='4h', account_balan
     print(f"📊 ANALYSIS COMPLETED: {analysis_end_time.strftime('%H:%M:%S')}")
     print(f"📊 TOTAL DURATION: {total_duration:.1f} seconds")
 
-def batch_analyze_cryptos(cryptos=None, account_balance=1000, enable_ml=False):
+def batch_analyze_cryptos(cryptos=None, account_balance=300, enable_ml=False):
     """Analyze multiple cryptocurrencies with SEPARATE ML models for each"""
     if cryptos is None:
         cryptos = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'ADA/USDT', 'DOT/USDT']
@@ -1733,8 +1754,17 @@ def batch_analyze_cryptos(cryptos=None, account_balance=1000, enable_ml=False):
                     print(f"{ML_COLOR}🤖 ML trained specifically on: {opportunity['ml_trained_on']}{RESET}")
             else:
                 print(f"{SCORE_COLOR}🎯 Traditional Score: {opportunity['signal_strength']}{RESET}")
-                
-            print(f"{INFO_COLOR}⚖️  R:R Ratio: {opportunity['risk_reward_ratio']:.2f}:1{RESET}")
+            
+            # FIXED: Handle R:R ratio - both dictionary and float formats
+            rr_info = opportunity.get('risk_reward_ratio', 0)
+            if isinstance(rr_info, dict):
+                # New format: dictionary with tp1, tp2, tp3
+                rr_display = f"TP1={rr_info.get('tp1', 0):.1f}:1, TP2={rr_info.get('tp2', 0):.1f}:1, TP3={rr_info.get('tp3', 0):.1f}:1"
+            else:
+                # Old format: single float
+                rr_display = f"{rr_info:.2f}:1"
+            
+            print(f"{INFO_COLOR}⚖️  R:R Ratios: {rr_display}{RESET}")
             print(f"{INFO_COLOR}💵 Risk Amount: ${opportunity['risk_amount']:,.2f} ({opportunity['risk_percentage']:.1f}% of account) {opportunity['risk_status']}{RESET}")
             print(f"{INFO_COLOR}⚡ Leverage: {opportunity['leverage']}x{RESET}")
             print(f"{INFO_COLOR}💼 Margin: ${opportunity['margin_required']:,.0f}{RESET}")
@@ -1904,9 +1934,9 @@ def test_final_consistency():
 # Main execution
 if __name__ == "__main__":
     # ==================== CONFIGURATION ====================
-    TEST_SYMBOL = 'BTC/USDT'  # ← Change only here for different coins
+    TEST_SYMBOL = 'BTC/USDT'  # ← Change only here for diffyerent coins
     TEST_TIMEFRAME = '4h'
-    TEST_BALANCE = 1000
+    TEST_BALANCE = 300
     TEST_ENABLE_ML = True
     # For batch analysis - can add multiple coins
     BATCH_COINS_ML = ['ETH/USDT']  # Just the test coin for ML analysis
@@ -1971,7 +2001,7 @@ if __name__ == "__main__":
     time.sleep(2)
     
     # Test 2: Batch analysis with ML (focus on test coin)
-    TradingAnimator.animate_title(f"🧪 TEST 2: {COIN_NAME} BATCH ANALYSIS WITH ML", 0.03)
+    TradingAnimator.animate_title(f"🧪 TEST 2: MULTI COIN BATCH ANALYSIS WITH ML", 0.03)
     # Optional: You can add more coins here if you want
     batch_analyze_cryptos(
         BATCH_COINS_ML, 
